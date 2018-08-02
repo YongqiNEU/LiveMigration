@@ -5,7 +5,7 @@ CFLAGS=-g -Wall -fPIC -O0
 %.o: %.c
 	${CC} ${CFLAGS} $< -c -o $@
 
-sender: send_migration.o
+sender: send_migration.o send_migration_helper.o
 
 receiver: receive_migration.o wait_for_migration.o util.o
 
