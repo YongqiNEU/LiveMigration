@@ -12,12 +12,10 @@
 
 void
 signalHandler(int signal);
+
 void
 savingCheckPointImage();
-void
-parseSectionHeader(char* header, struct memorySection* section);
-int
-readLine(int checkpoint_image_fd, char line[256]);
+
 void
 writeToImage(int fd, struct memorySection* section);
 
@@ -107,27 +105,6 @@ savingCheckPointImage()
 /////*****************************************************************/////
 ////////////////////////// helper functions //////////////////////////////
 
-int
-readLine(int checkpoint_image_fd, char line[256])
-{
-  char c = 0;
-  int len = 0;
-
-  while (len == 0 || c != '\n') {
-    if (read(checkpoint_image_fd, &c, 1) == 0) {
-      // printf("Reach the end of the file \n");
-      return len;
-    }
-
-    *line = c;
-    line += 1;
-    len += 1;
-  }
-
-  *line = '\0';
-  return len;
-}
-
 // write memory seections to destination fd;
 void
 writeToImage(int fd, struct memorySection* section)
@@ -141,20 +118,4 @@ writeToImage(int fd, struct memorySection* section)
   if (ret != section->end - section->start) {
     printf("Section data failed to write\n");
   }
-}
-
-// parse a section header from a memory section
-// store info into memory section structure
-void
-parseSectionHeader(char* header, struct memorySection* section)
-{
-  sscanf(header,
-         "%p-%p %c%c%c%c %x",
-         &section->start,
-         &section->end,
-         &section->permissions[0],
-         &section->permissions[1],
-         &section->permissions[2],
-         &section->permissions[3],
-         &section->offset);
 }
