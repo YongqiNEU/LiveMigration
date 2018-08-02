@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <sys/socket.h>
+#include "migration_header.h"
 #define PORT 5000
 
 int main(int argc, char const *argv[]) {
@@ -33,10 +34,24 @@ int main(int argc, char const *argv[]) {
   }
 
 
-  // TEST 
-  send(sock , "Hello from client" , strlen(hello) , 0 );
-  printf("Hello message sent\n");
-  valread = read( sock , buffer, 1024);
-  printf("%s\n",buffer );
+  // sending 
+  struct stat file_stat;
+  int fd = open("readonly", O_RDONLY);
+  while (fd == -1){
+    fd = open("readonly", O_RDONLY);
+  }
+  //Get file stats
+  if (fstat(fd, &file_stat) < 0){
+      fprintf(stderr, "Error fstat --> %s", strerror(errno));
+  }
+
+  int offset = 0;
+  int remain_data = file_stat.st_size;
+  /* Sending file data */
+  while (((sent_bytes = sendfile(sock,fd , &offset, BUFSIZ)) > 0) && (remain_data > 0))
+  {
+      remain_data -= sent_bytes;
+  }
+
   return 0;
 }
