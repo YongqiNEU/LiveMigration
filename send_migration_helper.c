@@ -10,6 +10,8 @@
 #include <ucontext.h>
 #include <unistd.h>
 
+#include "migration_header.h"
+
 void
 signalHandler(int signal);
 
