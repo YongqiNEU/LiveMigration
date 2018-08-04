@@ -22,4 +22,7 @@ parseSectionHeader(char*, struct memorySection*);
 int
 readLine(int, char);
 
+char*
+getNameFromOffset(char*);
+
 #endif

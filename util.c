@@ -50,3 +50,23 @@ parseSectionHeader(char* header, struct memorySection* section)
          &section->permissions[3],
          &section->offset);
 }
+
+char*
+getNameFromOffset(char* offset)
+{
+  int i;
+  char *str1, *delim = " ", *saveptr, *token;
+
+  for (i = 1, str1 = offset;; i++, str1 = NULL) {
+    token = strtok_r(str1, delim, &saveptr);
+    if (token == NULL) {
+      break;
+    }
+
+    if (i == 4) {
+      return token;
+    }
+  }
+
+  return NULL;
+}
