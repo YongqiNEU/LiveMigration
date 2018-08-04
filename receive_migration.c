@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -30,7 +31,10 @@ main(int argc, char* argv[])
   struct sockaddr_in clientAddr;
   socklen_t clientAddrLen;
 
-  struct memorySection* readMemorySections;
+  struct memorySection *readMemorySections, *temp;
+
+  VA stackStartAddr = 0x5300000;
+  size_t stackSize;
 
   if (argc < 3) {
     fprintf(stderr, "IP Address and Port number required \n");
@@ -44,6 +48,16 @@ main(int argc, char* argv[])
     ipAddr, portNo, (struct sockaddr*)&clientAddr, &clientAddrLen);
 
   ReadPagesContext(sockFd, &numReadPages, readMemorySections);
+
+  temp = GetStackMemorySection();
+  if (temp) {
+    stackSize = temp->endAddr - temp->startAddr;
+    stackMemoryRegion = *temp;
+  } else {
+    ShowError("No original stack (Unknown error)", 0);
+  }
+
+  stackAssignedAddr = MapStack((void*)stackStartAddr, stackSize);
 }
 
 void
@@ -108,4 +122,52 @@ Poll(int sockFd, int timeout)
   }
 
   return fd.revents;
+}
+
+// maps stack in the virtual memory at provided address using given stack size
+// returns: the starting address of the mapped stack
+void*
+MapStack(void* startAddr, size_t stackSize)
+{
+  int prot = PROT_READ | PROT_WRITE;
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN;
+  void* addr = mmap(startAddr, stackSize, prot, flags, -1, 0);
+
+  if (addr == MAP_FAILED) {
+    printf("Stack Map failed\n");
+    return NULL;
+  }
+
+  return addr;
+}
+
+// reads memory maps of current process and
+// returns: the MemoryRegion of the current stack or NULL if stack is not
+// present in process maps
+struct memorySection*
+GetStackMemorySection()
+{
+  char fileName[21], line[256], *name;
+  int pid, ret;
+
+  pid = getpid();
+  sprintf(fileName, "/proc/%d/maps", pid);
+
+  int fileReadFd = open(fileName, O_RDONLY);
+
+  struct memorySection mem;
+  while (1) {
+    ret = readLine(fileReadFd, line);
+    if (ret <= 0)
+      break;
+
+    parseSectionHeader(line, &mem);
+    name = getNameFromOffset(mem->offset);
+    if (name && !strcmp(name, "[stack]")) {
+      break;
+    }
+  }
+
+  close(fileReadFd);
+  return mem;
 }
