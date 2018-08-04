@@ -2,6 +2,11 @@
 #ifndef HEADER_FILE
 #define HEADER_FILE
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/socket.h>
+
 typedef unsigned long int VA;
 
 struct memorySection
@@ -22,7 +27,7 @@ void
 parseSectionHeader(char*, struct memorySection*);
 
 int
-readLine(int, char);
+readLine(int, char*);
 
 char*
 getNameFromSectionLine(char*);
