@@ -18,9 +18,6 @@ signalHandler(int signal);
 void
 savingCheckPointImage();
 
-void
-writeToImage(int fd, struct memorySection* section);
-
 /////*****************************************************************/////
 
 // constructor SIGUSR2 signal and signal handler
@@ -106,18 +103,3 @@ savingCheckPointImage()
 
 /////*****************************************************************/////
 ////////////////////////// helper functions //////////////////////////////
-
-// write memory seections to destination fd;
-void
-writeToImage(int fd, struct memorySection* section)
-{
-  ssize_t ret = write(fd, section, sizeof(struct memorySection));
-  if (ret != sizeof(struct memorySection)) {
-    printf("Section write failed \n");
-  }
-
-  ret = write(fd, section->start, section->end - section->start);
-  if (ret != section->end - section->start) {
-    printf("Section data failed to write\n");
-  }
-}

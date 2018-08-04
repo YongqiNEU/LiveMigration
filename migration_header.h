@@ -25,6 +25,12 @@ int
 readLine(int, char);
 
 char*
-getNameFromOffset(char*);
+getNameFromSectionLine(char*);
+
+void
+copyMemorySection(struct memorySection*, struct memorySection*);
+
+void
+writeToImage(int, struct memorySection*);
 
 #endif

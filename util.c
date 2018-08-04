@@ -14,6 +14,21 @@ ShowError(char* msg, int errno)
   exit(1);
 }
 
+// write memory seections to destination fd;
+void
+writeToImage(int fd, struct memorySection* section)
+{
+  ssize_t ret = write(fd, section, sizeof(struct memorySection));
+  if (ret != sizeof(struct memorySection)) {
+    printf("Section write failed \n");
+  }
+
+  ret = write(fd, section->start, section->end - section->start);
+  if (ret != section->end - section->start) {
+    printf("Section data failed to write\n");
+  }
+}
+
 int
 readLine(int checkpoint_image_fd, char line[256])
 {
@@ -52,7 +67,7 @@ parseSectionHeader(char* header, struct memorySection* section)
 }
 
 char*
-getNameFromOffset(char* offset)
+getNameFromSectionLine(char* offset)
 {
   int i;
   char *str1, *delim = " ", *saveptr, *token;
@@ -63,10 +78,25 @@ getNameFromOffset(char* offset)
       break;
     }
 
-    if (i == 4) {
+    if (i == 6) {
       return token;
     }
   }
 
   return NULL;
+}
+
+void
+copyMemorySection(struct memorySection* dest, struct memorySection* src)
+{
+  int i;
+
+  strcpy(dest->start, src->start);
+  strcpy(dest->end, src->end);
+
+  for (i = 0; i < 4; i++) {
+    dest->permissions[i] = src->permissions[i];
+  }
+
+  dest->offset = src->offset;
 }
