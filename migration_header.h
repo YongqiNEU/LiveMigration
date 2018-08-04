@@ -2,6 +2,8 @@
 #ifndef HEADER_FILE
 #define HEADER_FILE
 
+typedef unsigned long int VA;
+
 struct memorySection
 {
   char* start;
