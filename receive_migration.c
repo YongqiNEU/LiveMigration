@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <ucontext.h>
 #include <unistd.h>
 
 #include "migration_header.h"
@@ -98,7 +99,7 @@ ReadPagesContext(int sockFd, int* numReadPages)
   size_t tempSize;
 
   struct memorySection* temp;
-  void* buf;
+  void *buf, *canCheckpointAddr;
 
   int fd = open(CHECKPOINT_PATH, O_RDWR | O_CREAT);
 
@@ -245,7 +246,7 @@ RestoreMemory(int numReadPages)
   int i;
   struct memorySection mem;
 
-  void* mapped;
+  void *mapped, *canCheckpointAddr;
 
   int fd, ret;
 
@@ -257,6 +258,11 @@ RestoreMemory(int numReadPages)
   // unmap old stack
   ret = munmap((void*)stackMemoryRegion.start,
                stackMemoryRegion.end - stackMemoryRegion.start);
+  if (ret == -1) {
+    ShowError("", errno);
+  }
+
+  ret = read(fd, &canCheckpointAddr, sizeof(void*));
   if (ret == -1) {
     ShowError("", errno);
   }
@@ -282,6 +288,8 @@ RestoreMemory(int numReadPages)
   }
 
   close(fd);
+  *((int*)canCheckpointAddr) = 0;
+  setcontext(&context);
 }
 
 // creates mapping in the virtual memory using mem struct and
