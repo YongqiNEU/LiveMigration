@@ -23,4 +23,4 @@ start_send: sender.so hello
 	  LD_PRELOAD=`pwd`/sender.so ./hello
 
 clean:
-	rm -f *.o receiver sender.so send_migration.o hello hello.o
+	rm -f *.o receiver sender.so send_migration.o hello hello.o readonly process_checkpoint.ckpt
