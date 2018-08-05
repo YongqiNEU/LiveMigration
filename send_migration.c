@@ -153,9 +153,6 @@ buildConnection()
 void
 sendReadOnly(int sock)
 {
- //test
-  send(sock, "hello message!!", strlen("hello message!!"), 0);
-	
   // sending
   struct stat file_stat;
   int fd = open("readonly", O_RDONLY);
@@ -171,7 +168,7 @@ sendReadOnly(int sock)
   int remain_data = file_stat.st_size;
   ssize_t sent_bytes;
   /* Sending file data */
-  while (((sent_bytes = sendfile(sock, fd, &offset, BUFSIZ)) > 0) &&
+  while (((sent_bytes = sendfile(sock, fd, NULL, BUFSIZ)) > 0) &&
          (remain_data > 0)) {
     remain_data -= sent_bytes;
   }
