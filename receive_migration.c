@@ -20,7 +20,10 @@
 
 char CHECKPOINT_PATH[256] = "process_checkpoint.ckpt";
 
-short
+int
+ReadUsingPoll(int, int, void*, int);
+
+int
 Poll(int, int);
 
 void
@@ -101,95 +104,102 @@ ReadPagesContext(int sockFd, int* numReadPages)
   struct memorySection* temp;
   void *buf, *canCheckpointAddr;
 
-  int fd = open(CHECKPOINT_PATH, O_RDWR | O_CREAT);
+  int fd = open(CHECKPOINT_PATH, O_RDWR | O_CREAT, S_IRWXU);
 
-  events = Poll(sockFd, -1);
-  if (events == -1) {
-    ShowError("", errno);
-  }
-
-  if (events & (POLLHUP | POLLRDHUP)) {
-    ShowError("connection lost", 0);
-  }
-
-  ret = read(sockFd, &canCheckpointAddr, sizeof(void*));
+  char msg[256];
+  ret = ReadUsingPoll(sockFd, -1, msg, strlen("hello message!!"));
   if (ret == -1) {
     ShowError("", errno);
   }
+  printf("%s\n", msg);
+
+  ret = ReadUsingPoll(sockFd, -1, &canCheckpointAddr, sizeof(void*));
+  if (ret == -1) {
+    ShowError("", errno);
+  }
+
+  printf("%p\n", canCheckpointAddr);
 
   ret = write(fd, &canCheckpointAddr, sizeof(void*));
   if (ret == -1) {
     ShowError("", errno);
   }
 
-  events = Poll(sockFd, -1);
-  if (events == -1) {
-    ShowError("", errno);
-  }
-
-  if (events & (POLLHUP | POLLRDHUP)) {
-    ShowError("connection lost", 0);
-  }
-
-  ret = read(sockFd, (void*)numReadPages, sizeof(int));
+  ret = ReadUsingPoll(sockFd, -1, (void*)numReadPages, sizeof(int));
   if (ret == -1) {
     ShowError("", errno);
   }
 
+  printf("%d\n", *numReadPages);
+
   for (i = 0; i <= *numReadPages; i++) {
-    events = Poll(sockFd, -1);
-    if (events == -1) {
-      ShowError("", errno);
-    }
+    if (i < *numReadPages) {
+      if (i % 2 == 0) {
+        temp = malloc(sizeof(struct memorySection));
 
-    if (events & (POLLHUP | POLLRDHUP)) {
-      ShowError("connection lost", 0);
-    }
+        ret =
+          ReadUsingPoll(sockFd, -1, (void*)temp, sizeof(struct memorySection));
+        if (ret == -1) {
+          ShowError("", errno);
+        }
 
-    if (events & POLLIN) {
-      // read data
-      if (i < *numReadPages) {
-        if (i % 2 == 0) {
-          temp = malloc(sizeof(struct memorySection));
-
-          ret = read(sockFd, (void*)temp, sizeof(struct memorySection));
-          if (ret == -1) {
-            ShowError("", errno);
-          }
-
-          ret = write(fd, (void*)temp, sizeof(struct memorySection));
-          if (ret == -1) {
-            ShowError("", errno);
-          }
-        } else {
-          tempSize = temp->end - temp->start;
-          buf = malloc(tempSize);
-
-          ret = read(sockFd, buf, tempSize);
-          if (ret == -1) {
-            ShowError("", errno);
-          }
-
-          ret = write(fd, buf, tempSize);
-          if (ret == -1) {
-            ShowError("", errno);
-          }
+        ret = write(fd, (void*)temp, sizeof(struct memorySection));
+        if (ret == -1) {
+          ShowError("", errno);
         }
       } else {
-        ret = read(sockFd, (void*)&context, sizeof(ucontext_t));
+        tempSize = temp->end - temp->start;
+        buf = malloc(tempSize);
+
+        ret = ReadUsingPoll(sockFd, -1, buf, tempSize);
+        if (ret == -1) {
+          ShowError("", errno);
+        }
+
+        ret = write(fd, buf, tempSize);
         if (ret == -1) {
           ShowError("", errno);
         }
       }
     } else {
-      ShowError("data expected but no data obtained", 0);
+      ret = ReadUsingPoll(sockFd, -1, (void*)&context, sizeof(ucontext_t));
+      if (ret == -1) {
+        ShowError("", errno);
+      }
     }
   }
 
   close(fd);
 }
 
-short
+// Returns: -1 in case of error and errno set appropriately
+//          0 when size bytes are written to addr
+int
+ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
+{
+  int ret = 0, curPtr = 0;
+
+  while (size > 0) {
+    ret = Poll(sockFd, timeout);
+    if (ret == -1) {
+      return ret;
+    } else {
+      curPtr = read(sockFd, (void*)((char*)addr + curPtr), size);
+      if (curPtr == -1) {
+        return -1;
+      }
+      // printf("%d\n", curPtr);
+      size -= curPtr;
+    }
+  }
+
+  return 0;
+}
+
+// Returns: -1 in case of error and errno set appropriately
+//          1 in case of success and data can be read from fd
+//          exit if data is expected and no data obtained
+int
 Poll(int sockFd, int timeout)
 {
   struct pollfd fd;
@@ -203,7 +213,16 @@ Poll(int sockFd, int timeout)
     return -1;
   }
 
-  return fd.revents;
+  if (fd.revents & (POLLHUP | POLLRDHUP)) {
+    ShowError("connection lost", 0);
+  }
+
+  if (fd.revents & POLLIN) {
+    return 1;
+  } else {
+    ShowError("data expected but no data obtained", 0);
+    return -1;
+  }
 }
 
 // maps stack in the virtual memory at provided address using given stack size
