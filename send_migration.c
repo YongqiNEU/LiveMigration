@@ -1,18 +1,18 @@
+#include "migration_header.h"
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <ucontext.h>
 #include <unistd.h>
-#include <netinet/in.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include "migration_header.h"
 
 #define PORT 5000
 
@@ -54,8 +54,9 @@ savingCheckPointImage()
   // variable that indicate wheather it should start migration
   int migrated = 0;
   int sock = buildConnection();
-  if(sock == -1) printf("Sending : connection failed to build/n/n/n/n");
-printf("Sending : connection failed to build/n/n/n/n");
+  if (sock == -1)
+    printf("Sending : connection failed to build/n/n/n/n");
+  // printf("Sending : connection failed to build/n/n/n/n");
   // context for saving and restoring registers
   ucontext_t context;
 
@@ -88,16 +89,16 @@ printf("Sending : connection failed to build/n/n/n/n");
 
   close(memory_layout_fd);
   close(checkpoint_image_fd);
-  
+
   getcontext(&context);
 
-  //send readonly file
-  //sendReadOnly(sock);
+  // send readonly file
+  // sendReadOnly(sock);
 
   // save context
   if (pid == getpid()) {
     // read checkpoint image file
-    checkpoint_image_fd = open("myckpt", O_RDWR);
+    checkpoint_image_fd = open("readonly", O_RDWR);
     lseek(checkpoint_image_fd, 0, SEEK_END);
 
     int context_ret = write(checkpoint_image_fd, &context, sizeof(context));
@@ -107,10 +108,10 @@ printf("Sending : connection failed to build/n/n/n/n");
 
     close(checkpoint_image_fd);
 
-    //send readonly file
+    // send readonly file
     sendReadOnly(sock);
 
-    //send other memory page on demand
+    // send other memory page on demand
 
   } else {
     printf("Program is restored\n");
@@ -123,37 +124,35 @@ printf("Sending : connection failed to build/n/n/n/n");
 /////*****************************************************************/////
 ////////////////////////// helper functions //////////////////////////////
 
+int
+buildConnection()
+{
 
-int buildConnection(){
-  struct sockaddr_in address;
-  int sock = 0, valread;
+  int sockfd = 0, n = 0;
+  char recvBuff[1024];
   struct sockaddr_in serv_addr;
 
-  char buffer[1024] = { 0 };
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    printf("\n Socket creation error \n");
+  memset(recvBuff, '0', sizeof(recvBuff));
+  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    printf("\n Error : Could not create socket \n");
     return -1;
   }
-
-  memset(&serv_addr, '0', sizeof(serv_addr));
 
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(PORT);
+  serv_addr.sin_port = htons(5000);
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-    printf("\nInvalid address/ Address not supported \n");
+  if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+    printf("\n Error : Connect Failed \n");
     return -1;
   }
 
-  if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-    printf("\nConnection Failed \n");
-    return -1;
-  }
-
-  return sock;
+  return sockfd;
 }
 
-void sendReadOnly(int sock){
+void
+sendReadOnly(int sock)
+{
   // sending
   struct stat file_stat;
   int fd = open("readonly", O_RDONLY);
@@ -163,7 +162,6 @@ void sendReadOnly(int sock){
   // Get file stats
   if (fstat(fd, &file_stat) < 0) {
     fprintf(stderr, "Error fstat --> %s", strerror(errno));
-
   }
 
   int offset = 0;
@@ -174,5 +172,4 @@ void sendReadOnly(int sock){
          (remain_data > 0)) {
     remain_data -= sent_bytes;
   }
-
 }
