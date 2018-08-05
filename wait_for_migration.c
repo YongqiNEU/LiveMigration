@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -21,9 +22,11 @@ WaitForMigration(in_addr_t ipAddr,
     return -1;
   }
 
+  memset(&serverAddr, '0', sizeof(struct sockaddr_in));
+
   serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = portNo;
-  serverAddr.sin_addr.s_addr = ipAddr;
+  serverAddr.sin_port = htons(5000);
+  serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   ret = bind(sockFd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
   if (ret == -1) {
