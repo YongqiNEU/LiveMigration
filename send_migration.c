@@ -10,7 +10,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 #include <netinet/in.h>
-
+#include <errno.h>
 #include <sys/socket.h>
 #include "migration_header.h"
 
@@ -52,7 +52,7 @@ savingCheckPointImage()
   char line[256];
 
   // variable that indicate wheather it should start migration
-  bool migrated = false;
+  int migrated = 0;
   int sock = buildConnection();
   if(sock == -1) printf("Sending : connection failed to build");
 
@@ -168,6 +168,7 @@ void sendReadOnly(int sock){
 
   int offset = 0;
   int remain_data = file_stat.st_size;
+  ssize_t sent_bytes;
   /* Sending file data */
   while (((sent_bytes = sendfile(sock, fd, &offset, BUFSIZ)) > 0) &&
          (remain_data > 0)) {
