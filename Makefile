@@ -19,8 +19,8 @@ start_receiver: receiver
 	./receiver ${IPADDR} ${PORTNO}
 
 start_send: sender.so hello
-	  (sleep 3 && kill -12 'pgrep -n hello') &
-	  LD_PRELOAD='pwd'/sender.so ./hello
+	  (sleep 3 && kill -12 `pgrep -n hello`) &
+	  LD_PRELOAD=`pwd`/sender.so ./hello
 
 clean:
-	rm -f *.o receiver
+	rm -f *.o receiver sender.so send_migration.o hello hello.o

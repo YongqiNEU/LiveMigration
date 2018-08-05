@@ -54,8 +54,8 @@ savingCheckPointImage()
   // variable that indicate wheather it should start migration
   int migrated = 0;
   int sock = buildConnection();
-  if(sock == -1) printf("Sending : connection failed to build");
-
+  if(sock == -1) printf("Sending : connection failed to build/n/n/n/n");
+printf("Sending : connection failed to build/n/n/n/n");
   // context for saving and restoring registers
   ucontext_t context;
 
@@ -140,7 +140,7 @@ int buildConnection(){
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_port = htons(PORT);
 
-  if (inet_pton(AF_INET, "10.110.176.160", &serv_addr.sin_addr) <= 0) {
+  if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
     printf("\nInvalid address/ Address not supported \n");
     return -1;
   }
