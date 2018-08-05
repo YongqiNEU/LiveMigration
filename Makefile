@@ -1,12 +1,12 @@
 
 CC=gcc
-CFLAGS=-g -Wall -fPIC -O0 -fno-stack-check -fno-stack-protector -fPIC -D_FORTIFY_SOURCES= -z execstack
+CFLAGS=-g -Wall -fPIC -O0 -fno-stack-check -fno-stack-protector -fPIC -D_FORTIFY_SOURCES= -z execstack -shared
 
 %.o: %.c
 	${CC} ${CFLAGS} $< -c -o $@
 
-sender.so: send_migration.o
-	gcc ${CFLAGS} -shared -o sender.so send_migration.o
+sender.so: send_migration.o util.o
+	${CC} ${CFLAGS} -shared -o $@ $^
 
 receiver: receive_migration.o wait_for_migration.o util.o
 	${CC} ${CFLAGS} -static \
