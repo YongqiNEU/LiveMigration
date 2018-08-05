@@ -106,25 +106,6 @@ ReadPagesContext(int sockFd, int* numReadPages)
 
   int fd = open(CHECKPOINT_PATH, O_RDWR | O_CREAT, S_IRWXU);
 
-  char msg[256];
-  ret = ReadUsingPoll(sockFd, -1, msg, strlen("hello message!!"));
-  if (ret == -1) {
-    ShowError("", errno);
-  }
-  printf("%s\n", msg);
-
-  ret = ReadUsingPoll(sockFd, -1, &canCheckpointAddr, sizeof(void*));
-  if (ret == -1) {
-    ShowError("", errno);
-  }
-
-  printf("%p\n", canCheckpointAddr);
-
-  ret = write(fd, &canCheckpointAddr, sizeof(void*));
-  if (ret == -1) {
-    ShowError("", errno);
-  }
-
   ret = ReadUsingPoll(sockFd, -1, (void*)numReadPages, sizeof(int));
   if (ret == -1) {
     ShowError("", errno);
@@ -184,7 +165,8 @@ ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
     if (ret == -1) {
       return ret;
     } else {
-      curPtr = read(sockFd, (void*)((char*)addr + curPtr), size);
+      addr = (void*)((char*)addr + curPtr);
+      curPtr = read(sockFd, addr, size);
       if (curPtr == -1) {
         return -1;
       }
