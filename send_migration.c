@@ -153,6 +153,9 @@ buildConnection()
 void
 sendReadOnly(int sock)
 {
+ //test
+  send(sock, "hello message!!", strlen("hello message!!"), 0);
+	
   // sending
   struct stat file_stat;
   int fd = open("readonly", O_RDONLY);
