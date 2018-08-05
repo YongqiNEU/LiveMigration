@@ -1,6 +1,6 @@
 
 CC=gcc
-CFLAGS=-g -Wall -fPIC -O0 -fno-stack-check -fno-stack-protector -fPIC -D_FORTIFY_SOURCES= -z execstack -shared
+CFLAGS=-g -Wall -fPIC -O0 -fno-stack-check -fno-stack-protector -fPIC -D_FORTIFY_SOURCES= -z execstack
 
 %.o: %.c
 	${CC} ${CFLAGS} $< -c -o $@
