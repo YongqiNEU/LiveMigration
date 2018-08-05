@@ -112,6 +112,25 @@ ReadPagesContext(int sockFd, int* numReadPages)
     ShowError("connection lost", 0);
   }
 
+  ret = read(sockFd, &canCheckpointAddr, sizeof(void*));
+  if (ret == -1) {
+    ShowError("", errno);
+  }
+
+  ret = write(fd, &canCheckpointAddr, sizeof(void*));
+  if (ret == -1) {
+    ShowError("", errno);
+  }
+
+  events = Poll(sockFd, -1);
+  if (events == -1) {
+    ShowError("", errno);
+  }
+
+  if (events & (POLLHUP | POLLRDHUP)) {
+    ShowError("connection lost", 0);
+  }
+
   ret = read(sockFd, (void*)numReadPages, sizeof(int));
   if (ret == -1) {
     ShowError("", errno);
