@@ -15,6 +15,7 @@ struct memorySection
   char* end;
   char permissions[4];
   unsigned int offset;
+  struct memorySection *next;
 };
 
 int

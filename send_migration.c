@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <ucontext.h>
 #include <unistd.h>
+#include <poll.h>
+#include <signal.h>
 
 #define PORT 5000
 
@@ -21,6 +23,8 @@ signalHandler(int signal);
 
 void
 savingCheckPointImage();
+void
+writeMemoryStructureToImage(int fd, struct memorySection* section);
 
 /////*****************************************************************/////
 
@@ -50,9 +54,11 @@ savingCheckPointImage()
 {
   int pid = getpid();
   char line[256];
-
+  
   // variable that indicate wheather it should start migration
   int migrated = 1;
+  struct memorySection listofsections;
+
   int sock = buildConnection();
   if (sock == -1)
     printf("Sending : connection failed to build/n/n/n/n");
@@ -83,6 +89,9 @@ savingCheckPointImage()
       }
       else{
     	 writeMemoryStructureToImage(checkpoint_image_fd,&section);
+         struct memorySection temp = listofsections;
+         listofsections = section;
+         listofsections.next = &temp;
       }
       counter++;
     }
@@ -117,6 +126,12 @@ savingCheckPointImage()
     sendReadOnly(sock);
 
     // send other memory page on demand
+    struct pollfd pollfd;
+    //pollfd.fd = uffd;
+    pollfd.events = POLLIN;
+  //  while(poll(pollfd, 1, 1) && ){
+    
+    //}
 
   } else {
     printf("Program is restored\n");
