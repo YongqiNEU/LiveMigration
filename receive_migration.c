@@ -47,7 +47,7 @@ struct memorySection stackMemoryRegion;
 int
 main(int argc, char* argv[])
 {
-  int sockFd, numReadPages;
+  int sockFd, numPages;
 
   in_addr_t ipAddr;
   in_port_t portNo;
@@ -73,7 +73,7 @@ main(int argc, char* argv[])
     ipAddr, portNo, (struct sockaddr*)&clientAddr, &clientAddrLen);
 
   // TODO get address of canCheckpoint variable also
-  ReadPagesContext(sockFd, &numReadPages);
+  ReadPagesContext(sockFd, &numPages);
 
   temp = GetStackMemorySection();
   if (temp) {
@@ -88,7 +88,7 @@ main(int argc, char* argv[])
     stackEndAddr = stackAssignedAddr + stackSize;
 
     asm volatile("mov %0,%%rsp" : : "g"(stackEndAddr) : "memory");
-    RestoreMemory(numReadPages);
+    RestoreMemory(numPages);
   }
 
   return 0;
@@ -292,7 +292,7 @@ RestoreMemory(int numPages)
       continue;
     }
 
-    if (mem->permissions[0] == 'r' && mem->permissions[1] != 'w') {
+    if (mem.permissions[0] == 'r' && mem.permissions[1] != 'w') {
       // reading address block and writing to appropriate address
       ret = read(fd, mapped, mem.end - mem.start);
       if (ret == -1) {
@@ -302,7 +302,7 @@ RestoreMemory(int numPages)
   }
 
   close(fd);
-  *((int*)canCheckpointAddr) = 0;
+  // *((int*)canCheckpointAddr) = 0;
   setcontext(&context);
 }
 
