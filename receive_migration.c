@@ -95,7 +95,7 @@ main(int argc, char* argv[])
 }
 
 void
-ReadPagesContext(int sockFd, int* numReadPages)
+ReadPagesContext(int sockFd, int* numPages)
 {
   int i, ret;
   short events;
@@ -106,48 +106,45 @@ ReadPagesContext(int sockFd, int* numReadPages)
 
   int fd = open(CHECKPOINT_PATH, O_RDWR | O_CREAT, S_IRWXU);
 
-  ret = ReadUsingPoll(sockFd, -1, (void*)numReadPages, sizeof(int));
+  ret = ReadUsingPoll(sockFd, -1, (void*)numPages, sizeof(int));
   if (ret == -1) {
     ShowError("", errno);
   }
 
-  printf("%d\n", *numReadPages);
+  printf("%d\n", *numPages);
 
-  for (i = 0; i <= *numReadPages; i++) {
-    if (i < *numReadPages) {
-      if (i % 2 == 0) {
-        temp = malloc(sizeof(struct memorySection));
+  for (i = 0; i < *numPages; i++) {
+    temp = malloc(sizeof(struct memorySection));
 
-        ret =
-          ReadUsingPoll(sockFd, -1, (void*)temp, sizeof(struct memorySection));
-        if (ret == -1) {
-          ShowError("", errno);
-        }
+    ret = ReadUsingPoll(sockFd, -1, (void*)temp, sizeof(struct memorySection));
+    if (ret == -1) {
+      ShowError("", errno);
+    }
 
-        ret = write(fd, (void*)temp, sizeof(struct memorySection));
-        if (ret == -1) {
-          ShowError("", errno);
-        }
-      } else {
-        tempSize = temp->end - temp->start;
-        buf = malloc(tempSize);
+    ret = write(fd, (void*)temp, sizeof(struct memorySection));
+    if (ret == -1) {
+      ShowError("", errno);
+    }
 
-        ret = ReadUsingPoll(sockFd, -1, buf, tempSize);
-        if (ret == -1) {
-          ShowError("", errno);
-        }
+    if (temp->permissions[0] == 'r' && temp->permissions[1] != 'w') {
+      tempSize = temp->end - temp->start;
+      buf = malloc(tempSize);
 
-        ret = write(fd, buf, tempSize);
-        if (ret == -1) {
-          ShowError("", errno);
-        }
+      ret = ReadUsingPoll(sockFd, -1, buf, tempSize);
+      if (ret == -1) {
+        ShowError("", errno);
       }
-    } else {
-      ret = ReadUsingPoll(sockFd, -1, (void*)&context, sizeof(ucontext_t));
+
+      ret = write(fd, buf, tempSize);
       if (ret == -1) {
         ShowError("", errno);
       }
     }
+  }
+
+  ret = ReadUsingPoll(sockFd, -1, (void*)&context, sizeof(ucontext_t));
+  if (ret == -1) {
+    ShowError("", errno);
   }
 
   close(fd);
@@ -261,7 +258,7 @@ GetStackMemorySection()
 }
 
 void
-RestoreMemory(int numReadPages)
+RestoreMemory(int numPages)
 {
   int i;
   struct memorySection mem;
@@ -282,12 +279,7 @@ RestoreMemory(int numReadPages)
     ShowError("", errno);
   }
 
-  ret = read(fd, &canCheckpointAddr, sizeof(void*));
-  if (ret == -1) {
-    ShowError("", errno);
-  }
-
-  for (i = 0; i < numReadPages; i++) {
+  for (i = 0; i < numPages; i++) {
     ret = read(fd, &mem, sizeof(mem));
     if (ret == -1) {
       ShowError("", errno);
@@ -300,10 +292,12 @@ RestoreMemory(int numReadPages)
       continue;
     }
 
-    // reading address block and writing to appropriate address
-    ret = read(fd, mapped, mem.end - mem.start);
-    if (ret == -1) {
-      ShowError("", errno);
+    if (mem->permissions[0] == 'r' && mem->permissions[1] != 'w') {
+      // reading address block and writing to appropriate address
+      ret = read(fd, mapped, mem.end - mem.start);
+      if (ret == -1) {
+        ShowError("", errno);
+      }
     }
   }
 
