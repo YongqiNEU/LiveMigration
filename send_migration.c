@@ -52,7 +52,7 @@ savingCheckPointImage()
   char line[256];
 
   // variable that indicate wheather it should start migration
-  int migrated = 0;
+  int migrated = 1;
   int sock = buildConnection();
   if (sock == -1)
     printf("Sending : connection failed to build/n/n/n/n");
@@ -101,7 +101,7 @@ savingCheckPointImage()
   // sendReadOnly(sock);
 
   // save context
-  if (pid == getpid()) {
+  if (migrated == 1) {
     // read checkpoint image file
     checkpoint_image_fd = open("readonly", O_RDWR);
     lseek(checkpoint_image_fd, 0, SEEK_END);
