@@ -74,14 +74,19 @@ savingCheckPointImage()
   while (readLine(memory_layout_fd, line) > 0) {
     parseSectionHeader(line, &section);
     // skip vsyscall, vvar and vdso lines
-    if (section.permissions[0] == 'r' && section.permissions[1] != 'w' &&
+    if (section.permissions[0] == 'r'&&
         strstr(line, "vvar") == NULL && strstr(line, "vdso") == NULL &&
         strstr(line, "vsyscall") == NULL) {
-
-      writeToImage(checkpoint_image_fd, &section);
-
+      
+      if(section.permissions[1] != 'w'){
+      	 writeToImage(checkpoint_image_fd, &section);
+      }
+      else{
+    	 writeMemoryStructureToImage(checkpoint_image_fd,&section);
+      }
       counter++;
     }
+    
   }
   // save counter
   lseek(checkpoint_image_fd, 0, SEEK_SET);
@@ -173,3 +178,14 @@ sendReadOnly(int sock)
     remain_data -= sent_bytes;
   }
 }
+
+// write non read only memory sections' structure to destination fd;
+void
+writeMemoryStructureToImage(int fd, struct memorySection* section)
+{
+  ssize_t ret = write(fd, section, sizeof(struct memorySection));
+  if (ret != sizeof(struct memorySection)) {
+    printf("Section write failed \n");
+  }
+}
+
