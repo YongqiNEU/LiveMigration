@@ -15,7 +15,7 @@ struct memorySection
   char* end;
   char permissions[4];
   unsigned int offset;
-  struct memorySection *next;
+  struct memorySection* next;
 };
 
 int
@@ -38,5 +38,11 @@ copyMemorySection(struct memorySection*, struct memorySection*);
 
 void
 writeToImage(int, struct memorySection*);
+
+void
+makeUserfault(struct memorySection*, int, int);
+
+int
+ReadUsingPoll(int, int, void*, int);
 
 #endif

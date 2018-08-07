@@ -21,9 +21,6 @@
 char CHECKPOINT_PATH[256] = "process_checkpoint.ckpt";
 
 int
-ReadUsingPoll(int, int, void*, int);
-
-int
 Poll(int, int);
 
 void
@@ -88,7 +85,7 @@ main(int argc, char* argv[])
     stackEndAddr = stackAssignedAddr + stackSize;
 
     asm volatile("mov %0,%%rsp" : : "g"(stackEndAddr) : "memory");
-    RestoreMemory(numPages);
+    RestoreMemory(numPages, sockFd);
   }
 
   return 0;
@@ -150,60 +147,6 @@ ReadPagesContext(int sockFd, int* numPages)
   close(fd);
 }
 
-// Returns: -1 in case of error and errno set appropriately
-//          0 when size bytes are written to addr
-int
-ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
-{
-  int ret = 0, curPtr = 0;
-
-  while (size > 0) {
-    ret = Poll(sockFd, timeout);
-    if (ret == -1) {
-      return ret;
-    } else {
-      addr = (void*)((char*)addr + curPtr);
-      curPtr = read(sockFd, addr, size);
-      if (curPtr == -1) {
-        return -1;
-      }
-      // printf("%d\n", curPtr);
-      size -= curPtr;
-    }
-  }
-
-  return 0;
-}
-
-// Returns: -1 in case of error and errno set appropriately
-//          1 in case of success and data can be read from fd
-//          exit if data is expected and no data obtained
-int
-Poll(int sockFd, int timeout)
-{
-  struct pollfd fd;
-  int ret;
-
-  fd.fd = sockFd;
-  fd.events = POLLIN | POLLRDHUP | POLLHUP;
-
-  ret = poll(&fd, 1, timeout);
-  if (ret == -1) {
-    return -1;
-  }
-
-  if (fd.revents & (POLLHUP | POLLRDHUP)) {
-    ShowError("connection lost", 0);
-  }
-
-  if (fd.revents & POLLIN) {
-    return 1;
-  } else {
-    ShowError("data expected but no data obtained", 0);
-    return -1;
-  }
-}
-
 // maps stack in the virtual memory at provided address using given stack size
 // returns: the starting address of the mapped stack
 void*
@@ -258,10 +201,10 @@ GetStackMemorySection()
 }
 
 void
-RestoreMemory(int numPages)
+RestoreMemory(int numPages, int sockFd)
 {
   int i;
-  struct memorySection mem;
+  struct memorySection mem, *sections;
 
   void *mapped, *canCheckpointAddr;
 
@@ -278,6 +221,8 @@ RestoreMemory(int numPages)
   if (ret == -1) {
     ShowError("", errno);
   }
+
+  sections = malloc(sizeof(struct memorySection) * numPages);
 
   for (i = 0; i < numPages; i++) {
     ret = read(fd, &mem, sizeof(mem));
@@ -298,10 +243,15 @@ RestoreMemory(int numPages)
       if (ret == -1) {
         ShowError("", errno);
       }
+    } else {
+      // copy to register for userfaultfd
+      copyMemorySection(&sections[i], &mem);
     }
   }
 
   close(fd);
+
+  makeUserFault(sections, numPages, sockFd);
   // *((int*)canCheckpointAddr) = 0;
   setcontext(&context);
 }
