@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -114,19 +117,19 @@ ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
 
   while (size > 0) {
     fd = malloc(sizeof(struct pollfd));
-    fd.fd = sockFd;
-    fd.events = POLLIN | POLLRDHUP | POLLHUP;
+    fd->fd = sockFd;
+    fd->events = POLLIN | POLLRDHUP | POLLHUP;
 
-    ret = poll(&fd, 1, timeout);
+    ret = poll(fd, 1, timeout);
     if (ret == -1) {
       return -1;
     }
 
-    if (fd.revents & (POLLHUP | POLLRDHUP)) {
+    if (fd->revents & (POLLHUP | POLLRDHUP)) {
       ShowError("connection lost", 0);
     }
 
-    if (fd.revents & POLLIN) {
+    if (fd->revents & POLLIN) {
       addr = (void*)((char*)addr + curPtr);
       curPtr = read(sockFd, addr, size);
       if (curPtr == -1) {
@@ -141,4 +144,31 @@ ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
   }
 
   return 0;
+}
+
+// reads a string containing hexadecimal characters and convertes it to an
+// integer value
+void
+ReadHex(char* hex, VA* value)
+{
+  int len = strlen(hex), i = 0;
+  char c;
+  VA v;
+
+  v = 0;
+  for (; i < len; i++) {
+    c = hex[i];
+    if ((c >= '0') && (c <= '9'))
+      c -= '0';
+    else if ((c >= 'a') && (c <= 'f'))
+      c -= 'a' - 10;
+    else if ((c >= 'A') && (c <= 'F'))
+      c -= 'A' - 10;
+    else
+      break;
+
+    v = v * 16 + c;
+  }
+
+  *value = v;
 }
