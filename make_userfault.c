@@ -45,7 +45,8 @@ makeUserfault(struct memorySection* sections, int numSections, int sockfd)
   for (i = 0; i < numSections; i++) {
     reg = malloc(sizeof(struct uffdio_register));
     reg->mode = UFFDIO_REGISTER_MODE_MISSING;
-    ReadHex(sections[i].start, &(reg->range.start));
+    reg->range.start = sections[i].start;
+    reg->range.len = sections[i].end - sections[i].start;
 
     if (ioctl(fd, UFFDIO_REGISTER, reg)) {
       ShowError("ioctl(fd, UFFDIO_REGISTER, ...) failed", 0);
@@ -101,6 +102,9 @@ readFaults(void* arg)
     }
 
     void* addr = (void*)faultMsg->arg.remap.from;
+
+    printf("fault address %p\n", addr);
+
     ret = write(sockfd, &addr, sizeof(void*));
     if (ret == -1) {
       ShowError("", errno);

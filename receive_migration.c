@@ -186,7 +186,6 @@ GetStackMemorySection()
     if (ret <= 0)
       break;
 
-    printf("%s\n", line);
     parseSectionHeader(line, mem);
     if (strstr(line, "stack")) {
       stackFound = 1;
@@ -201,7 +200,7 @@ GetStackMemorySection()
 void
 RestoreMemory(int numPages, int sockFd)
 {
-  int i;
+  int i, numSections;
   struct memorySection mem, *sections;
 
   void *mapped, *canCheckpointAddr;
@@ -220,6 +219,7 @@ RestoreMemory(int numPages, int sockFd)
     ShowError("", errno);
   }
 
+  numSections = 0;
   sections = malloc(sizeof(struct memorySection) * numPages);
 
   for (i = 0; i < numPages; i++) {
@@ -243,13 +243,14 @@ RestoreMemory(int numPages, int sockFd)
       }
     } else {
       // copy to register for userfaultfd
-      copyMemorySection(&sections[i], &mem);
+      copyMemorySection(sections + numSections, &mem);
+      numSections++;
     }
   }
 
   close(fd);
 
-  makeUserfault(sections, numPages, sockFd);
+  makeUserfault(sections, numSections, sockFd);
   // *((int*)canCheckpointAddr) = 0;
   setcontext(&context);
 }

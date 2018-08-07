@@ -97,8 +97,8 @@ copyMemorySection(struct memorySection* dest, struct memorySection* src)
 {
   int i;
 
-  strcpy(dest->start, src->start);
-  strcpy(dest->end, src->end);
+  dest->start = src->start;
+  dest->end = src->end;
 
   for (i = 0; i < 4; i++) {
     dest->permissions[i] = src->permissions[i];
