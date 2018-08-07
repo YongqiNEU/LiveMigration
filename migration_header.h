@@ -3,11 +3,12 @@
 #define HEADER_FILE
 
 #include <arpa/inet.h>
+#include <linux/types.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
 
-typedef unsigned long int VA;
+typedef __u64 VA;
 
 struct memorySection
 {
@@ -44,5 +45,8 @@ makeUserfault(struct memorySection*, int, int);
 
 int
 ReadUsingPoll(int, int, void*, int);
+
+void
+ReadHex(char*, VA*);
 
 #endif
