@@ -15,16 +15,28 @@
 #include <unistd.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/sendfile.h>
 
+#include <sys/types.h>
+#include <linux/userfaultfd.h>
 #define PORT 5000
 
 void
 signalHandler(int signal);
-
 void
 savingCheckPointImage();
 void
 writeMemoryStructureToImage(int fd, struct memorySection* section);
+void
+sendReadOnly(int sock);
+void
+sendMemorySection(int sock, char* startAddress);
+int
+buildConnection();
+struct memorySection*
+findMemorySection(char* start, struct memorySection* section);
+void
+sendingPagesOndemand(int sock, struct memorySection* listofsections);
 
 /////*****************************************************************/////
 
@@ -52,12 +64,12 @@ signalHandler(int signal)
 void
 savingCheckPointImage()
 {
-  int pid = getpid();
+  //int pid = getpid();  // not
   char line[256];
   
   // variable that indicate wheather it should start migration
   int migrated = 1;
-  struct memorySection listofsections;
+  struct memorySection* listofsections;
 
   int sock = buildConnection();
   if (sock == -1)
@@ -89,9 +101,9 @@ savingCheckPointImage()
       }
       else{
     	 writeMemoryStructureToImage(checkpoint_image_fd,&section);
-         struct memorySection temp = listofsections;
-         listofsections = section;
-         listofsections.next = &temp;
+         struct memorySection* templist = listofsections;
+         listofsections = &section;
+         listofsections->next = templist;
       }
       counter++;
     }
@@ -123,16 +135,12 @@ savingCheckPointImage()
     close(checkpoint_image_fd);
 
     // send readonly file
-    sendReadOnly(sock);
+    sendReadOnly(sock); // include non-read-only pages addresses.
 
     // send other memory page on demand
-    struct pollfd pollfd;
-    //pollfd.fd = uffd;
-    pollfd.events = POLLIN;
-  //  while(poll(pollfd, 1, 1) && ){
-    
-    //}
+    sendingPagesOndemand(sock, listofsections);
 
+    printf("sending process ended");
   } else {
     printf("Program is restored\n");
 
@@ -148,7 +156,7 @@ int
 buildConnection()
 {
 
-  int sockfd = 0, n = 0;
+  int sockfd = 0; //, n = 0; not used
   char recvBuff[1024];
   struct sockaddr_in serv_addr;
 
@@ -184,7 +192,7 @@ sendReadOnly(int sock)
     fprintf(stderr, "Error fstat --> %s", strerror(errno));
   }
 
-  int offset = 0;
+  //int offset = 0; not used
   int remain_data = file_stat.st_size;
   ssize_t sent_bytes;
   /* Sending file data */
@@ -194,6 +202,29 @@ sendReadOnly(int sock)
   }
 }
 
+void
+sendMemorySection(int sock, char* startAddress)
+{
+  // sending
+  struct stat file_stat;
+  int fd = open(startAddress, O_RDONLY);
+
+  // Get file stats
+  if (fstat(fd, &file_stat) < 0) {
+    fprintf(stderr, "Error fstat --> %s", strerror(errno));
+  }
+
+  //int offset = 0; not used
+  int remain_data = file_stat.st_size;
+  ssize_t sent_bytes;
+  /* Sending file data */
+  while (((sent_bytes = sendfile(sock, fd, NULL, BUFSIZ)) > 0) &&
+         (remain_data > 0)) {
+    remain_data -= sent_bytes;
+  }
+}
+
+
 // write non read only memory sections' structure to destination fd;
 void
 writeMemoryStructureToImage(int fd, struct memorySection* section)
@@ -202,5 +233,57 @@ writeMemoryStructureToImage(int fd, struct memorySection* section)
   if (ret != sizeof(struct memorySection)) {
     printf("Section write failed \n");
   }
+}
+
+struct memorySection*
+findMemorySection(char* start, struct memorySection* section)
+{
+  struct memorySection* prev = NULL;
+  struct memorySection* ret = NULL;
+ 
+  while(section != NULL && strcmp(section->start, start) != 0){
+ 	prev = section;
+ 	section = section->next;
+  }  
+  
+  ret = section;
+  if(prev != NULL && ret != NULL) prev->next = ret->next;
+
+  return ret;
+}
+
+
+void
+sendingPagesOndemand(int sock, struct memorySection* listofsections)
+{
+
+    struct pollfd pollfd;
+    pollfd.fd = sock;
+    pollfd.events = POLLIN;
+    
+    while(listofsections != NULL){
+        if(poll(&pollfd, 1, -1) <= 0) continue;
+
+	char* startAddress; // data read from userfault fd   
+        struct memorySection* sendingSection;
+	ssize_t nread = read(pollfd.fd, &startAddress, 1024); 
+	if(nread <= 0){
+		printf("nread faliure");
+		exit(EXIT_FAILURE);
+	}
+
+  	if(strcmp(listofsections->start, startAddress) == 0){
+		sendingSection = listofsections;
+ 		listofsections = listofsections->next;
+	} 
+  	else{
+		sendingSection = findMemorySection(startAddress, listofsections);
+	}
+	
+	int section_image_fd = open(startAddress, O_CREAT | O_RDWR, S_IRWXU);
+	writeToImage(section_image_fd, sendingSection);
+	close(section_image_fd);
+	sendMemorySection(sock, startAddress);
+   }
 }
 
