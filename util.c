@@ -103,3 +103,42 @@ copyMemorySection(struct memorySection* dest, struct memorySection* src)
 
   dest->offset = src->offset;
 }
+
+// Returns: -1 in case of error and errno set appropriately
+//          0 when size bytes are written to addr
+int
+ReadUsingPoll(int sockFd, int timeout, void* addr, int size)
+{
+  struct pollfd* fd;
+  int ret = 0, curPtr = 0;
+
+  while (size > 0) {
+    fd = malloc(sizeof(struct pollfd));
+    fd.fd = sockFd;
+    fd.events = POLLIN | POLLRDHUP | POLLHUP;
+
+    ret = poll(&fd, 1, timeout);
+    if (ret == -1) {
+      return -1;
+    }
+
+    if (fd.revents & (POLLHUP | POLLRDHUP)) {
+      ShowError("connection lost", 0);
+    }
+
+    if (fd.revents & POLLIN) {
+      addr = (void*)((char*)addr + curPtr);
+      curPtr = read(sockFd, addr, size);
+      if (curPtr == -1) {
+        return -1;
+      }
+      // printf("%d\n", curPtr);
+      size -= curPtr;
+    } else {
+      ShowError("data expected but no data obtained", 0);
+      return -1;
+    }
+  }
+
+  return 0;
+}
