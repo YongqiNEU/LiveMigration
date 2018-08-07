@@ -262,24 +262,37 @@ sendingPagesOndemand(int sock, struct memorySection* listofsections)
     pollfd.events = POLLIN;
     
     while(listofsections != NULL){
-        if(poll(&pollfd, 1, -1) <= 0) continue;
-
-	char* startAddress; // data read from userfault fd   
         struct memorySection* sendingSection;
-	ssize_t nread = read(pollfd.fd, &startAddress, 1024); 
-	if(nread <= 0){
-		printf("nread faliure");
-		exit(EXIT_FAILURE);
-	}
+	char startAddress[sizeof(void *)] = {0}; // data read from userfault fd   
+	int parallel = 0;
 
-  	if(strcmp(listofsections->start, startAddress) == 0){
+	//sending pages if there is no user fault fd from receiver
+        if(poll(&pollfd, 1, -1) <= 0 && parallel){
 		sendingSection = listofsections;
  		listofsections = listofsections->next;
-	} 
-  	else{
-		sendingSection = findMemorySection(startAddress, listofsections);
-	}
+		strcpy(startAddress, sendingSection->start);
 	
+			printf("here success\n");
+	}
+	else{ // userfault happened
+		ssize_t nread = read(pollfd.fd, &startAddress, sizeof(void *)); 
+		if(nread < 0){
+			printf("nread faliure\n");
+			exit(EXIT_FAILURE);
+		}
+				printf("%s success\n", startAddress);
+	  	if(strcmp(listofsections->start, startAddress) == 0){
+				printf("here faliure3\n");
+			sendingSection = listofsections;
+				printf("here faliure3\n");
+	 		listofsections = listofsections->next;
+		} 
+  		else{
+				printf("here faliure3\n");
+			sendingSection = findMemorySection(startAddress, listofsections);
+		}
+	}
+				printf("here faliure3\n");
 	int section_image_fd = open(startAddress, O_CREAT | O_RDWR, S_IRWXU);
 	writeToImage(section_image_fd, sendingSection);
 	close(section_image_fd);
