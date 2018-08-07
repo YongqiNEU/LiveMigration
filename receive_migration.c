@@ -186,9 +186,9 @@ GetStackMemorySection()
     if (ret <= 0)
       break;
 
+    printf("%s\n", line);
     parseSectionHeader(line, mem);
-    name = getNameFromSectionLine(line);
-    if (name && !strcmp(name, "[stack]")) {
+    if (strstr(line, "stack")) {
       stackFound = 1;
       break;
     }
