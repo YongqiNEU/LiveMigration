@@ -8,7 +8,7 @@ CFLAGS=-g -Wall -lpthread -fPIC -O0 -fno-stack-check -fno-stack-protector -fPIC 
 sender.so: send_migration.o util.o
 	${CC} ${CFLAGS} -shared -o $@ $^
 
-receiver: receive_migration.o wait_for_migration.o util.o
+receiver: receive_migration.o wait_for_migration.o util.o make_userfault.o
 	${CC} ${CFLAGS} -static \
 	-Wl,-Ttext-segment=5000000 -Wl,-Tdata=5100000 -Wl,-Tbss=5200000 \
 	-o $@ $^
