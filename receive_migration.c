@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -33,7 +31,7 @@ struct memorySection*
 GetStackMemorySection();
 
 void
-RestoreMemory(int);
+RestoreMemory(int, int);
 
 void* CreateMmap(struct memorySection);
 
@@ -251,7 +249,7 @@ RestoreMemory(int numPages, int sockFd)
 
   close(fd);
 
-  makeUserFault(sections, numPages, sockFd);
+  makeUserfault(sections, numPages, sockFd);
   // *((int*)canCheckpointAddr) = 0;
   setcontext(&context);
 }
