@@ -264,23 +264,24 @@ sendingPagesOndemand(int sock, struct memorySection* listofsections)
     while(listofsections != NULL){
         struct memorySection* sendingSection;
 	char startAddress[sizeof(void *)] = {0}; // data read from userfault fd   
-	int parallel = 0;
+	int parallel = 0;  // toggle the parallel sending  
 
 	//sending pages if there is no user fault fd from receiver
-        if(poll(&pollfd, 1, -1) <= 0 && parallel){
-		sendingSection = listofsections;
- 		listofsections = listofsections->next;
-		strcpy(startAddress, sendingSection->start);
-	
-			printf("here success\n");
+        if(poll(&pollfd, 1, -1) <= 0){
+		//sendingSection = listofsections;
+ 		//listofsections = listofsections->next;
+		//strcpy(startAddress, sendingSection->start);
+		
+			printf("continue\n");
+		continue;
 	}
 	else{ // userfault happened
-		ssize_t nread = read(pollfd.fd, &startAddress, sizeof(void *)); 
+		ssize_t nread = read(pollfd.fd, startAddress, sizeof(void *)); 
 		if(nread < 0){
 			printf("nread faliure\n");
 			exit(EXIT_FAILURE);
 		}
-				printf("Requesting Address is : %s   .\n", startAddress);
+				printf("Requesting Address is : %zd   .\n", nread);
 	  	if(strcmp(listofsections->start, startAddress) == 0){
 			//	printf("here faliure3\n");
 			sendingSection = listofsections;
