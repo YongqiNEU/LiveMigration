@@ -280,19 +280,19 @@ sendingPagesOndemand(int sock, struct memorySection* listofsections)
 			printf("nread faliure\n");
 			exit(EXIT_FAILURE);
 		}
-				printf("%s success\n", startAddress);
+				printf("Requesting Address is : %s   .\n", startAddress);
 	  	if(strcmp(listofsections->start, startAddress) == 0){
-				printf("here faliure3\n");
+			//	printf("here faliure3\n");
 			sendingSection = listofsections;
-				printf("here faliure3\n");
+				//printf("here faliure3\n");
 	 		listofsections = listofsections->next;
 		} 
   		else{
-				printf("here faliure3\n");
+			//	printf("here faliure3\n");
 			sendingSection = findMemorySection(startAddress, listofsections);
 		}
 	}
-				printf("here faliure3\n");
+			//	printf("here faliure3\n");
 	int section_image_fd = open(startAddress, O_CREAT | O_RDWR, S_IRWXU);
 	writeToImage(section_image_fd, sendingSection);
 	close(section_image_fd);
