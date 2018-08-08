@@ -12,6 +12,8 @@
 
 #include "migration_header.h"
 
+static int pageSize;
+
 struct Fds
 {
   int userftfd, sockfd;
@@ -29,6 +31,8 @@ makeUserfault(struct memorySection* sections, int numSections, int sockfd)
   pthread_t thread;
   struct Fds* fds;
 
+  pageSize = sysconf(_SC_PAGE_SIZE);
+
   fd = syscall(SYS_userfaultfd, O_NONBLOCK);
   if (fd == -1) {
     ShowError("", errno);
@@ -45,7 +49,7 @@ makeUserfault(struct memorySection* sections, int numSections, int sockfd)
   for (i = 0; i < numSections; i++) {
     reg = malloc(sizeof(struct uffdio_register));
     reg->mode = UFFDIO_REGISTER_MODE_MISSING;
-    reg->range.start = sections[i].start;
+    reg->range.start = (VA)sections[i].start;
     reg->range.len = sections[i].end - sections[i].start;
 
     if (ioctl(fd, UFFDIO_REGISTER, reg)) {
@@ -101,9 +105,10 @@ readFaults(void* arg)
       ShowError("unexpected pagefault", 0);
     }
 
-    void* addr = (void*)faultMsg->arg.remap.from;
+    void* addr =
+      (void*)((unsigned long)faultMsg->arg.pagefault.address & ~(pageSize - 1));
 
-    printf("fault address %p\n", addr);
+    printf("fault address %p, length %lld\n", addr, faultMsg->arg.remap.len);
 
     ret = write(sockfd, &addr, sizeof(void*));
     if (ret == -1) {
@@ -120,7 +125,7 @@ readFaults(void* arg)
     copy = malloc(sizeof(struct uffdio_copy));
     copy->dst = (VA)addr;
     copy->src = (VA)pageInfo;
-    copy->len = faultMsg->arg.remap.len;
+    copy->len = pageSize;
 
     if (ioctl(userftfd, UFFDIO_COPY, copy)) {
       ShowError("error while UFFDIO_COPY", 0);
