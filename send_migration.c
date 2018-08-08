@@ -203,7 +203,7 @@ sendReadOnly(int sock)
 }
 
 void
-sendMemorySection(int sock, char* startAddress)
+sendMemoryPage(int sock, char* startAddress)
 {
   // sending
   struct stat file_stat;
@@ -253,6 +253,17 @@ findMemorySection(char* start, struct memorySection* section)
 }
 
 
+// write memory page to destination fd;
+void
+writeToPage(int fd, char * startAddress)
+{
+  ssize_t ret = write(fd, startAddress, (size_t)syscon(_SC_PAGESIZE));
+  if (ret != sizeof(struct memorySection)) {
+    printf("page write failed \n");
+  }
+}
+
+
 void
 sendingPagesOndemand(int sock, struct memorySection* listofsections)
 {
@@ -277,27 +288,31 @@ sendingPagesOndemand(int sock, struct memorySection* listofsections)
 	}
 	else{ // userfault happened
 		ssize_t nread = read(pollfd.fd, startAddress, sizeof(void *)); 
+		if(nread == 0) continue;
 		if(nread < 0){
 			printf("nread faliure\n");
 			exit(EXIT_FAILURE);
 		}
-				printf("Requesting Address is : %zd   .\n", nread);
-	  	if(strcmp(listofsections->start, startAddress) == 0){
+				printf("Requesting Address is : %s   .\n", startAddress);
+
+	  //	if(strcmp(listofsections->start, startAddress) == 0){
 			//	printf("here faliure3\n");
-			sendingSection = listofsections;
+		//	sendingSection = listofsections;
 				//printf("here faliure3\n");
-	 		listofsections = listofsections->next;
-		} 
-  		else{
+	 	//	listofsections = listofsections->next;
+		//} 
+  		//else{
 			//	printf("here faliure3\n");
-			sendingSection = findMemorySection(startAddress, listofsections);
-		}
+		//	sendingSection = findMemorySection(startAddress, listofsections);
+	//	}
 	}
+	
+
 			//	printf("here faliure3\n");
-	int section_image_fd = open(startAddress, O_CREAT | O_RDWR, S_IRWXU);
-	writeToImage(section_image_fd, sendingSection);
-	close(section_image_fd);
-	sendMemorySection(sock, startAddress);
+	int page_image_fd = open(startAddress, O_CREAT | O_RDWR, S_IRWXU);
+	writeToPageFd(page_image_fd, startAddress);
+	close(page_image_fd);
+	sendMemoryPage(sock, startAddress);
    }
 }
 
