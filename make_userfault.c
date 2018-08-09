@@ -108,16 +108,16 @@ readFaults(void* arg)
     void* addr =
       (void*)((unsigned long)faultMsg->arg.pagefault.address & ~(pageSize - 1));
 
-    printf("fault address %p, length %lld\n", addr, faultMsg->arg.remap.len);
+    printf("fault address %p, length %lld\n", addr, pageSize);
 
     ret = write(sockfd, &addr, sizeof(void*));
     if (ret == -1) {
       ShowError("", errno);
     }
 
-    pageInfo = malloc(faultMsg->arg.remap.len);
+    pageInfo = malloc(pageSize);
 
-    ret = ReadUsingPoll(sockfd, -1, pageInfo, faultMsg->arg.remap.len);
+    ret = ReadUsingPoll(sockfd, -1, pageInfo, pageSize);
     if (ret == -1) {
       ShowError("", errno);
     }
