@@ -3,22 +3,21 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <ucontext.h>
 #include <unistd.h>
-#include <poll.h>
-#include <signal.h>
-#include <sys/sendfile.h>
 
-#include <sys/types.h>
 #include <linux/userfaultfd.h>
+#include <sys/types.h>
 #define PORT 5000
 
 void
@@ -48,6 +47,9 @@ myconstructor()
   signal(SIGUSR2, signalHandler);
 }
 
+// variable that indicate wheather it should start migration
+int migrated = 0;
+
 // signal handler for signal SIGUSR2
 // it will initiate saving a check point image file
 void
@@ -64,11 +66,9 @@ signalHandler(int signal)
 void
 savingCheckPointImage()
 {
-  //int pid = getpid();  // not
+  // int pid = getpid();  // not
   char line[256];
-  
-  // variable that indicate wheather it should start migration
-  int migrated = 1;
+
   struct memorySection* listofsections;
 
   int sock = buildConnection();
@@ -92,22 +92,19 @@ savingCheckPointImage()
   while (readLine(memory_layout_fd, line) > 0) {
     parseSectionHeader(line, &section);
     // skip vsyscall, vvar and vdso lines
-    if (section.permissions[0] == 'r'&&
-        strstr(line, "vvar") == NULL && strstr(line, "vdso") == NULL &&
-        strstr(line, "vsyscall") == NULL) {
-      
-      if(section.permissions[1] != 'w'){
-      	 writeToImage(checkpoint_image_fd, &section);
-      }
-      else{
-    	 writeMemoryStructureToImage(checkpoint_image_fd,&section);
-         struct memorySection* templist = listofsections;
-         listofsections = &section;
-         listofsections->next = templist;
+    if (section.permissions[0] == 'r' && strstr(line, "vvar") == NULL &&
+        strstr(line, "vdso") == NULL && strstr(line, "vsyscall") == NULL) {
+
+      if (section.permissions[1] != 'w') {
+        writeToImage(checkpoint_image_fd, &section);
+      } else {
+        writeMemoryStructureToImage(checkpoint_image_fd, &section);
+        struct memorySection* templist = listofsections;
+        listofsections = &section;
+        listofsections->next = templist;
       }
       counter++;
     }
-    
   }
   // save counter
   lseek(checkpoint_image_fd, 0, SEEK_SET);
@@ -115,6 +112,8 @@ savingCheckPointImage()
 
   close(memory_layout_fd);
   close(checkpoint_image_fd);
+
+  migrated = 1;
 
   getcontext(&context);
 
@@ -127,8 +126,8 @@ savingCheckPointImage()
     checkpoint_image_fd = open("readonly", O_RDWR);
     lseek(checkpoint_image_fd, 0, SEEK_END);
 
-    int context_ret = write(checkpoint_image_fd, &context, sizeof(context));
-    if (context_ret != sizeof(context)) {
+    int context_ret = write(checkpoint_image_fd, &context, sizeof(ucontext_t));
+    if (context_ret != sizeof(ucontext_t)) {
       printf("context failed to write\n");
     }
 
@@ -192,7 +191,7 @@ sendReadOnly(int sock)
     fprintf(stderr, "Error fstat --> %s", strerror(errno));
   }
 
-  //int offset = 0; not used
+  // int offset = 0; not used
   int remain_data = file_stat.st_size;
   ssize_t sent_bytes;
   /* Sending file data */
@@ -214,7 +213,7 @@ sendMemoryPage(int sock, char* startAddress)
     fprintf(stderr, "Error fstat --> %s", strerror(errno));
   }
 
-  //int offset = 0; not used
+  // int offset = 0; not used
   int remain_data = file_stat.st_size;
   ssize_t sent_bytes;
   /* Sending file data */
@@ -223,7 +222,6 @@ sendMemoryPage(int sock, char* startAddress)
     remain_data -= sent_bytes;
   }
 }
-
 
 // write non read only memory sections' structure to destination fd;
 void
@@ -240,22 +238,22 @@ findMemorySection(char* start, struct memorySection* section)
 {
   struct memorySection* prev = NULL;
   struct memorySection* ret = NULL;
- 
-  while(section != NULL && strcmp(section->start, start) != 0){
- 	prev = section;
- 	section = section->next;
-  }  
-  
+
+  while (section != NULL && strcmp(section->start, start) != 0) {
+    prev = section;
+    section = section->next;
+  }
+
   ret = section;
-  if(prev != NULL && ret != NULL) prev->next = ret->next;
+  if (prev != NULL && ret != NULL)
+    prev->next = ret->next;
 
   return ret;
 }
 
-
 // write memory page to destination fd;
 void
-writeToPageFd(int fd, void * startPointer)
+writeToPageFd(int fd, void* startPointer)
 {
   ssize_t ret = write(fd, startPointer, sysconf(_SC_PAGESIZE));
   if (ret != sysconf(_SC_PAGESIZE)) {
@@ -263,59 +261,58 @@ writeToPageFd(int fd, void * startPointer)
   }
 }
 
-
 void
 sendingPagesOndemand(int sock, struct memorySection* listofsections)
 {
 
-    struct pollfd pollfd;
-    pollfd.fd = sock;
-    pollfd.events = POLLIN;
-    
-    while(listofsections != NULL){
-        struct memorySection* sendingSection;
-	char startAddress[1024]; // data read from userfault fd   
-	int parallel = 0;  // toggle the parallel sending  
-	void* startPointer = NULL;
+  struct pollfd pollfd;
+  pollfd.fd = sock;
+  pollfd.events = POLLIN;
 
-	//sending pages if there is no user fault fd from receiver
-        if(poll(&pollfd, 1, -1) <= 0){
-		//sendingSection = listofsections;
- 		//listofsections = listofsections->next;
-		//strcpy(startAddress, sendingSection->start);
-		
-			printf("continue\n");
-		continue;
-	}
-	else{ // userfault happened
-		ssize_t nread = read(pollfd.fd, startAddress, sizeof(void *)); 
-		if(nread == 0) continue;
-		if(nread < 0){
-			printf("nread faliure\n");
-			exit(EXIT_FAILURE);
-		}
-				printf("Requesting Address length : %zd  .\n", nread);
-		memcpy(&startPointer,startAddress, sizeof(void *));
-				printf("Requesting Address is : %p  .\n", startPointer);
+  while (listofsections != NULL) {
+    struct memorySection* sendingSection;
+    char startAddress[1024]; // data read from userfault fd
+    int parallel = 0;        // toggle the parallel sending
+    void* startPointer;
 
-	  //	if(strcmp(listofsections->start, startAddress) == 0){
-			//	printf("here faliure3\n");
-		//	sendingSection = listofsections;
-				//printf("here faliure3\n");
-	 	//	listofsections = listofsections->next;
-		//} 
-  		//else{
-			//	printf("here faliure3\n");
-		//	sendingSection = findMemorySection(startAddress, listofsections);
-	//	}
-	}
-	
+    // sending pages if there is no user fault fd from receiver
+    if (poll(&pollfd, 1, -1) <= 0) {
+      // sendingSection = listofsections;
+      // listofsections = listofsections->next;
+      // strcpy(startAddress, sendingSection->start);
 
-			//	printf("here faliure3\n");
-	int page_image_fd = open("pagefile", O_CREAT | O_RDWR, S_IRWXU);
-	writeToPageFd(page_image_fd, startPointer);
-	close(page_image_fd); // move to bottom
-	sendMemoryPage(sock, "pagefile");
-   }
+      printf("continue\n");
+      continue;
+    } else { // userfault happened
+      ssize_t nread = read(pollfd.fd, &startPointer, sizeof(void*));
+      if (nread == 0)
+        continue;
+      if (nread < 0) {
+        printf("nread faliure\n");
+        exit(EXIT_FAILURE);
+      }
+      // printf("Requesting Address length : %zd  .\n", nread);
+      // memcpy(&startPointer, startAddress, sizeof(void*));
+      printf("Requesting Address is : %p  .\n", startPointer);
+      migrated = 0;
+
+      //	if(strcmp(listofsections->start, startAddress) == 0){
+      //	printf("here faliure3\n");
+      //	sendingSection = listofsections;
+      // printf("here faliure3\n");
+      //	listofsections = listofsections->next;
+      //}
+      // else{
+      //	printf("here faliure3\n");
+      //	sendingSection = findMemorySection(startAddress,
+      // listofsections);
+      //	}
+    }
+
+    //	printf("here faliure3\n");
+    int page_image_fd = open("pagefile", O_CREAT | O_RDWR, S_IRWXU);
+    writeToPageFd(page_image_fd, startPointer);
+    close(page_image_fd); // move to bottom
+    sendMemoryPage(sock, "pagefile");
+  }
 }
-
