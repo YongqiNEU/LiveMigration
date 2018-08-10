@@ -26,7 +26,7 @@ void
 makeUserfault(struct memorySection* sections, int numSections, int sockfd)
 {
   int fd, i;
-  struct uffdio_api api = {.api = UFFD_API };
+  struct uffdio_api api = {.api = UFFD_API, .features = 0 };
   struct uffdio_register* reg;
   pthread_t thread;
   struct Fds* fds;
@@ -66,6 +66,7 @@ makeUserfault(struct memorySection* sections, int numSections, int sockfd)
   fds->sockfd = sockfd;
 
   pthread_create(&thread, NULL, readFaults, fds);
+  sleep(1);
 }
 
 void*
@@ -74,6 +75,7 @@ readFaults(void* arg)
   int userftfd, ret, sockfd;
   struct uffd_msg* faultMsg;
   struct uffdio_copy* copy;
+  struct uffdio_range* range;
 
   struct Fds* fds = (struct Fds*)arg;
   void* pageInfo;
@@ -81,9 +83,8 @@ readFaults(void* arg)
   userftfd = fds->userftfd;
   sockfd = fds->sockfd;
 
-  struct pollfd pfd = {.fd = userftfd, .events = POLLIN };
-
   while (1) {
+    struct pollfd pfd = {.fd = userftfd, .events = POLLIN };
     ret = poll(&pfd, 1, -1);
     if (ret == -1) {
       ShowError("", errno);
@@ -126,9 +127,19 @@ readFaults(void* arg)
     copy->dst = (VA)addr;
     copy->src = (VA)pageInfo;
     copy->len = pageSize;
+    copy->mode = 0;
+    copy->copy = 0;
 
     if (ioctl(userftfd, UFFDIO_COPY, copy)) {
       ShowError("error while UFFDIO_COPY", 0);
+    }
+
+    range = malloc(sizeof(struct uffdio_range));
+    range->start = (VA)addr;
+    range->len = pageSize;
+
+    if (ioctl(userftfd, UFFDIO_UNREGISTER, range)) {
+      ShowError("error while unregistering page", 0);
     }
   }
 
